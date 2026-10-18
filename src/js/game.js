@@ -52,14 +52,15 @@ function aligned( v ) {
 }
 
 // Una celda es muro para el actor dado?
-//   pacman: bloqueado por pared (1) y puerta (3)
-//   ghost:  bloqueado solo por pared (1)
+//   pacman:       bloqueado por pared (1) y puerta (3)
+//   ghost:        bloqueado solo por pared (1)
+//   ghostWaiting: fantasma en espera en la pen; la puerta (3) tambien le bloquea
 function isWall( grid, x, y, actor ) {
   if ( y < 0 || y >= grid.length ) return true;
   if ( x < 0 || x >= grid[ 0 ].length ) return true;
   const v = grid[ y ][ x ];
   if ( v === 1 ) return true;
-  if ( v === 3 && actor === 'pacman' ) return true;
+  if ( v === 3 && ( actor === 'pacman' || actor === 'ghostWaiting' ) ) return true;
   return false;
 }
 
@@ -142,21 +143,38 @@ function decideGhost( game, g ) {
   }
 }
 
+// Fantasma esperando en la pen antes de su salida: patrulla aleatoria. La
+// puerta le bloquea (actor 'ghostWaiting'), asi que queda confinado a la pen.
+function decideWaitingGhost( game, g ) {
+  const grid = game.grid;
+  const options = Object.keys( DIRS ).filter(
+    ( dir ) => dir !== OPPOSITE[ g.dir ] && canMove( grid, g.x, g.y, dir, 'ghostWaiting' )
+  );
+  const choices = options.length ? options : [ OPPOSITE[ g.dir ] ];
+  g.dir = choices[ Math.floor( Math.random() * choices.length ) ];
+}
+
 function moveGhost( game, g ) {
   const grid = game.grid;
   const width = grid[ 0 ].length;
+  const waiting = g.exitDelay > 0;
+  const actor = waiting ? 'ghostWaiting' : 'ghost';
 
   if ( aligned( g.x ) && aligned( g.y ) ) {
     g.x = Math.round( g.x );
     g.y = Math.round( g.y );
-    decideGhost( game, g );
-    if ( !canMove( grid, g.x, g.y, g.dir, 'ghost' ) ) return;
+    if ( waiting ) decideWaitingGhost( game, g );
+    else decideGhost( game, g );
+    if ( !canMove( grid, g.x, g.y, g.dir, actor ) ) return;
   }
 
   const d = DIRS[ g.dir ];
   g.x += d.x * g.speed;
   g.y += d.y * g.speed;
   wrapTunnel( g, width );
+
+  // Cada frame de juego vence un frame del retraso de salida.
+  if ( waiting ) g.exitDelay--;
 }
 
 function resetPositions( game ) {
