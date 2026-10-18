@@ -42,6 +42,7 @@ function createGame() {
       dir: 'up',
       speed: GHOST_SPEED,
       kind: g.kind,
+      exitDelay: g.exitDelay,
     } ) ),
   };
 }
@@ -51,14 +52,15 @@ function aligned( v ) {
 }
 
 // Una celda es muro para el actor dado?
-//   pacman: bloqueado por pared (1) y puerta (3)
-//   ghost:  bloqueado solo por pared (1)
+//   pacman:       bloqueado por pared (1) y puerta (3)
+//   ghost:        bloqueado solo por pared (1)
+//   ghostWaiting: fantasma en espera en la pen; la puerta (3) tambien le bloquea
 function isWall( grid, x, y, actor ) {
   if ( y < 0 || y >= grid.length ) return true;
   if ( x < 0 || x >= grid[ 0 ].length ) return true;
   const v = grid[ y ][ x ];
   if ( v === 1 ) return true;
-  if ( v === 3 && actor === 'pacman' ) return true;
+  if ( v === 3 && ( actor === 'pacman' || actor === 'ghostWaiting' ) ) return true;
   return false;
 }
 
@@ -119,6 +121,7 @@ function decideGhost( game, g ) {
   );
   // Sin salida (callejon): permitir el giro de 180.
   const choices = options.length ? options : [ '' + OPPOSITE[ g.dir ] ];
+  if ( choices.length === 0 ) return;
 
   if ( g.kind === 'hunter' ) {
     const px = Math.round( p.x );
@@ -136,26 +139,110 @@ function decideGhost( game, g ) {
       }
     }
     g.dir = best;
+  } else if ( g.kind === 'ambusher' ) {
+    const px = Math.round( p.x );
+    const py = Math.round( p.y );
+    const pd = DIRS[ p.dir ] || { x: 0, y: 0 };
+    const tx = px + pd.x * 4;
+    const ty = py + pd.y * 4;
+    let best = choices[ 0 ];
+    let bestDist = Infinity;
+    for ( const dir of choices ) {
+      const d = DIRS[ dir ];
+      const nx = g.x + d.x;
+      const ny = g.y + d.y;
+      const dist = Math.abs( nx - tx ) + Math.abs( ny - ty );
+      if ( dist < bestDist ) {
+        bestDist = dist;
+        best = dir;
+      }
+    }
+    g.dir = best;
+  } else if ( g.kind === 'hybrid' ) {
+    const hunter = game.ghosts.find( ( gg ) => gg.kind === 'hunter' );
+    const hx = Math.round( hunter ? hunter.x : g.x );
+    const hy = Math.round( hunter ? hunter.y : g.y );
+    const px = Math.round( p.x );
+    const py = Math.round( p.y );
+    const pd = DIRS[ p.dir ] || { x: 0, y: 0 };
+    const p2x = px + pd.x * 2;
+    const p2y = py + pd.y * 2;
+    // objetivo = vector doble desde la posicion del hunter al punto 2 delante de Pac-Man: 2*p2 - h
+    const tx = 2 * p2x - hx;
+    const ty = 2 * p2y - hy;
+    let best = choices[ 0 ];
+    let bestDist = Infinity;
+    for ( const dir of choices ) {
+      const d = DIRS[ dir ];
+      const nx = g.x + d.x;
+      const ny = g.y + d.y;
+      const dist = Math.abs( nx - tx ) + Math.abs( ny - ty );
+      if ( dist < bestDist ) {
+        bestDist = dist;
+        best = dir;
+      }
+    }
+    g.dir = best;
+  } else if ( g.kind === 'shy' ) {
+    const px = Math.round( p.x );
+    const py = Math.round( p.y );
+    const gx = Math.round( g.x );
+    const gy = Math.round( g.y );
+    const dist = Math.abs( gx - px ) + Math.abs( gy - py );
+    const tx = dist > 8 ? px : 1;
+    const ty = dist > 8 ? py : 29;
+    let best = choices[ 0 ];
+    let bestDist = Infinity;
+    for ( const dir of choices ) {
+      const d = DIRS[ dir ];
+      const nx = g.x + d.x;
+      const ny = g.y + d.y;
+      const d2 = Math.abs( nx - tx ) + Math.abs( ny - ty );
+      if ( d2 < bestDist ) {
+        bestDist = d2;
+        best = dir;
+      }
+    }
+    g.dir = best;
   } else {
+    // Otros tipos: o cualquier valor desconocido -> comportamiento
+    // aleatorio (fallback, tal como indica la spec).
     g.dir = choices[ Math.floor( Math.random() * choices.length ) ];
   }
+}
+
+// Fantasma esperando en la pen antes de su salida: patrulla aleatoria. La
+// puerta le bloquea (actor 'ghostWaiting'), asi que queda confinado a la pen.
+function decideWaitingGhost( game, g ) {
+  const grid = game.grid;
+  const options = Object.keys( DIRS ).filter(
+    ( dir ) => dir !== OPPOSITE[ g.dir ] && canMove( grid, g.x, g.y, dir, 'ghostWaiting' )
+  );
+  const choices = options.length ? options : [ OPPOSITE[ g.dir ] ];
+  g.dir = choices[ Math.floor( Math.random() * choices.length ) ];
 }
 
 function moveGhost( game, g ) {
   const grid = game.grid;
   const width = grid[ 0 ].length;
+  const waiting = g.exitDelay > 0;
+  const actor = waiting ? 'ghostWaiting' : 'ghost';
 
   if ( aligned( g.x ) && aligned( g.y ) ) {
     g.x = Math.round( g.x );
     g.y = Math.round( g.y );
-    decideGhost( game, g );
-    if ( !canMove( grid, g.x, g.y, g.dir, 'ghost' ) ) return;
+    if ( waiting ) decideWaitingGhost( game, g );
+    else decideGhost( game, g );
+    if ( !canMove( grid, g.x, g.y, g.dir, actor ) ) return;
   }
 
   const d = DIRS[ g.dir ];
   g.x += d.x * g.speed;
   g.y += d.y * g.speed;
   wrapTunnel( g, width );
+
+  // Cada frame de juego vence un frame del retraso de salida.
+  if ( waiting ) g.exitDelay--;
 }
 
 function resetPositions( game ) {
@@ -165,9 +252,11 @@ function resetPositions( game ) {
   p.dir = 'left';
   p.nextDir = null;
   game.ghosts.forEach( ( g, i ) => {
-    g.x = GHOST_STARTS[ i ].x;
-    g.y = GHOST_STARTS[ i ].y;
+    const start = GHOST_STARTS[ i ] || {};
+    g.x = start.x !== undefined ? start.x : g.x;
+    g.y = start.y !== undefined ? start.y : g.y;
     g.dir = 'up';
+    g.exitDelay = start.exitDelay !== undefined ? start.exitDelay : g.exitDelay;
   } );
 }
 

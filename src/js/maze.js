@@ -51,9 +51,13 @@ const MAZE = MAZE_STR.map( ( row ) => row.split( '' ).map( parseTile ) );
 
 const TUNNEL_ROW = 14;
 const PACMAN_START = { x: 13, y: 23 };
+// 4 fantasmas, todos dentro de la pen (filas 13-15, cols 11-16).
+// exitDelay en frames (60 fps): 0 / 240 / 480 / 720 = 0/4/8/12 s.
 const GHOST_STARTS = [
-  { x: 13, y: 14, kind: 'hunter' }, // dentro de la pen
-  { x: 14, y: 14, kind: 'random' }, // dentro de la pen
+  { x: 13, y: 14, kind: 'hunter',   exitDelay: 0   }, // rojo
+  { x: 14, y: 14, kind: 'ambusher', exitDelay: 240 }, // rosa  (4 s)
+  { x: 12, y: 14, kind: 'hybrid',   exitDelay: 480 }, // celeste (8 s)
+  { x: 15, y: 14, kind: 'shy',      exitDelay: 720 }, // naranja (12 s)
 ];
 
 window.MAZE = MAZE;
