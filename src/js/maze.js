@@ -50,6 +50,8 @@ function parseTile( ch ) {
 const MAZE = MAZE_STR.map( ( row ) => row.split( '' ).map( parseTile ) );
 
 const TUNNEL_ROW = 14;
+const PEN_EXIT_COLS = [ 13, 14 ]; // columnas de la puerta pen
+const PEN_EXIT_Y = 11;            // fila del pasillo sobre la puerta
 const PACMAN_START = { x: 13, y: 23 };
 // 4 fantasmas, todos dentro de la pen (filas 13-15, cols 11-16).
 // exitDelay en frames (60 fps): 0 / 240 / 480 / 720 = 0/4/8/12 s.
@@ -62,5 +64,7 @@ const GHOST_STARTS = [
 
 window.MAZE = MAZE;
 window.TUNNEL_ROW = TUNNEL_ROW;
+window.PEN_EXIT_COLS = PEN_EXIT_COLS;
+window.PEN_EXIT_Y = PEN_EXIT_Y;
 window.PACMAN_START = PACMAN_START;
 window.GHOST_STARTS = GHOST_STARTS;

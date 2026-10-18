@@ -1,6 +1,6 @@
 // game.js
 // Estado y reglas. Depende de globals de maze.js: MAZE, TUNNEL_ROW,
-// PACMAN_START, GHOST_STARTS.
+// PEN_EXIT_COLS, PEN_EXIT_Y, PACMAN_START, GHOST_STARTS.
 
 const DIRS = {
   left: { x: -1, y: 0 },
@@ -43,6 +43,7 @@ function createGame() {
       speed: GHOST_SPEED,
       kind: g.kind,
       exitDelay: g.exitDelay,
+      exited: false,
     } ) ),
   };
 }
@@ -222,6 +223,18 @@ function decideWaitingGhost( game, g ) {
   g.dir = choices[ Math.floor( Math.random() * choices.length ) ];
 }
 
+// Ruta fija de salida de la pen: si esta fuera de las columnas de la puerta,
+// se mueve horizontalmente hacia la mas cercana (13 en empate); si esta en
+// columna 13 o 14, sube hasta el pasillo superior.
+function decideExit( game, g ) {
+  const inExitCol = PEN_EXIT_COLS.includes( Math.round( g.x ) );
+  if ( !inExitCol ) {
+    g.dir = g.x < PEN_EXIT_COLS[ 0 ] ? 'right' : 'left';
+  } else {
+    g.dir = 'up';
+  }
+}
+
 function moveGhost( game, g ) {
   const grid = game.grid;
   const width = grid[ 0 ].length;
@@ -232,7 +245,13 @@ function moveGhost( game, g ) {
     g.x = Math.round( g.x );
     g.y = Math.round( g.y );
     if ( waiting ) decideWaitingGhost( game, g );
-    else decideGhost( game, g );
+    else if ( !g.exited ) {
+      decideExit( game, g );
+      if ( g.y <= PEN_EXIT_Y ) {
+        g.exited = true;
+        decideGhost( game, g );
+      }
+    } else decideGhost( game, g );
     if ( !canMove( grid, g.x, g.y, g.dir, actor ) ) return;
   }
 
@@ -257,6 +276,7 @@ function resetPositions( game ) {
     g.y = start.y !== undefined ? start.y : g.y;
     g.dir = 'up';
     g.exitDelay = start.exitDelay !== undefined ? start.exitDelay : g.exitDelay;
+    g.exited = false;
   } );
 }
 
