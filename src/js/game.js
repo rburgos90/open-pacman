@@ -121,6 +121,7 @@ function decideGhost( game, g ) {
   );
   // Sin salida (callejon): permitir el giro de 180.
   const choices = options.length ? options : [ '' + OPPOSITE[ g.dir ] ];
+  if ( choices.length === 0 ) return;
 
   if ( g.kind === 'hunter' ) {
     const px = Math.round( p.x );
@@ -138,7 +139,28 @@ function decideGhost( game, g ) {
       }
     }
     g.dir = best;
+  } else if ( g.kind === 'ambusher' ) {
+    const px = Math.round( p.x );
+    const py = Math.round( p.y );
+    const pd = DIRS[ p.dir ] || { x: 0, y: 0 };
+    const tx = px + pd.x * 4;
+    const ty = py + pd.y * 4;
+    let best = choices[ 0 ];
+    let bestDist = Infinity;
+    for ( const dir of choices ) {
+      const d = DIRS[ dir ];
+      const nx = g.x + d.x;
+      const ny = g.y + d.y;
+      const dist = Math.abs( nx - tx ) + Math.abs( ny - ty );
+      if ( dist < bestDist ) {
+        bestDist = dist;
+        best = dir;
+      }
+    }
+    g.dir = best;
   } else {
+    // Otros tipos: hybrid, shy, o cualquier valor desconocido -> comportamiento
+    // aleatorio (fallback, tal como indica la spec).
     g.dir = choices[ Math.floor( Math.random() * choices.length ) ];
   }
 }
