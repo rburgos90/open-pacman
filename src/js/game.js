@@ -183,8 +183,29 @@ function decideGhost( game, g ) {
       }
     }
     g.dir = best;
+  } else if ( g.kind === 'shy' ) {
+    const px = Math.round( p.x );
+    const py = Math.round( p.y );
+    const gx = Math.round( g.x );
+    const gy = Math.round( g.y );
+    const dist = Math.abs( gx - px ) + Math.abs( gy - py );
+    const tx = dist > 8 ? px : 1;
+    const ty = dist > 8 ? py : 29;
+    let best = choices[ 0 ];
+    let bestDist = Infinity;
+    for ( const dir of choices ) {
+      const d = DIRS[ dir ];
+      const nx = g.x + d.x;
+      const ny = g.y + d.y;
+      const d2 = Math.abs( nx - tx ) + Math.abs( ny - ty );
+      if ( d2 < bestDist ) {
+        bestDist = d2;
+        best = dir;
+      }
+    }
+    g.dir = best;
   } else {
-    // Otros tipos: hybrid, shy, o cualquier valor desconocido -> comportamiento
+    // Otros tipos: o cualquier valor desconocido -> comportamiento
     // aleatorio (fallback, tal como indica la spec).
     g.dir = choices[ Math.floor( Math.random() * choices.length ) ];
   }
@@ -231,9 +252,11 @@ function resetPositions( game ) {
   p.dir = 'left';
   p.nextDir = null;
   game.ghosts.forEach( ( g, i ) => {
-    g.x = GHOST_STARTS[ i ].x;
-    g.y = GHOST_STARTS[ i ].y;
+    const start = GHOST_STARTS[ i ] || {};
+    g.x = start.x !== undefined ? start.x : g.x;
+    g.y = start.y !== undefined ? start.y : g.y;
     g.dir = 'up';
+    g.exitDelay = start.exitDelay !== undefined ? start.exitDelay : g.exitDelay;
   } );
 }
 
