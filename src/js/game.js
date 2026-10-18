@@ -158,6 +158,31 @@ function decideGhost( game, g ) {
       }
     }
     g.dir = best;
+  } else if ( g.kind === 'hybrid' ) {
+    const hunter = game.ghosts.find( ( gg ) => gg.kind === 'hunter' );
+    const hx = Math.round( hunter ? hunter.x : g.x );
+    const hy = Math.round( hunter ? hunter.y : g.y );
+    const px = Math.round( p.x );
+    const py = Math.round( p.y );
+    const pd = DIRS[ p.dir ] || { x: 0, y: 0 };
+    const p2x = px + pd.x * 2;
+    const p2y = py + pd.y * 2;
+    // objetivo = vector doble desde la posicion del hunter al punto 2 delante de Pac-Man: 2*p2 - h
+    const tx = 2 * p2x - hx;
+    const ty = 2 * p2y - hy;
+    let best = choices[ 0 ];
+    let bestDist = Infinity;
+    for ( const dir of choices ) {
+      const d = DIRS[ dir ];
+      const nx = g.x + d.x;
+      const ny = g.y + d.y;
+      const dist = Math.abs( nx - tx ) + Math.abs( ny - ty );
+      if ( dist < bestDist ) {
+        bestDist = dist;
+        best = dir;
+      }
+    }
+    g.dir = best;
   } else {
     // Otros tipos: hybrid, shy, o cualquier valor desconocido -> comportamiento
     // aleatorio (fallback, tal como indica la spec).
