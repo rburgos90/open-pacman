@@ -305,6 +305,10 @@ function resetPositions( game ) {
   p.y = PACMAN_START.y;
   p.dir = 'left';
   p.nextDir = null;
+  // Al perder una vida se cancela el modo asustado y su cadena. Los pellets ya
+  // comidos no reaparecen: no se toca el grid.
+  game.scared = 0;
+  game.ghostChain = 0;
   game.ghosts.forEach( ( g, i ) => {
     const start = GHOST_STARTS[ i ] || {};
     g.x = start.x !== undefined ? start.x : g.x;
