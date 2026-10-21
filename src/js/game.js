@@ -13,6 +13,12 @@ const OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' };
 const PACMAN_SPEED = 0.125; // 1/8 celda/frame -> alinea cada 8 frames
 const GHOST_SPEED = 0.1;    // 1/10 celda/frame
 
+// Reglas del modo asustado (power pellets).
+const SCARED_FRAMES = 420;        // 7 s a 60 fps
+const SCARED_FLASH_FRAMES = 120;  // ultimos 2 s: parpadeo
+const POWER_PELLET_SCORE = 50;
+const GHOST_EAT_BASE = 200;       // 200/400/800/1600 = 200 * 2^cadena
+
 // Crea una partida nueva. Copia MAZE (pristino) a game.grid para poder comer
 // dots sin destruir el original, y reiniciar.
 function createGame() {
@@ -21,13 +27,15 @@ function createGame() {
   grid[ PACMAN_START.y ][ PACMAN_START.x ] = 0;
 
   let dots = 0;
-  for ( const row of grid ) for ( const v of row ) if ( v === 2 ) dots++;
+  for ( const row of grid ) for ( const v of row ) if ( v === 2 || v === 4 ) dots++;
 
   return {
     state: 'start',
     score: 0,
     lives: 3,
     dotsRemaining: dots,
+    scared: 0,     // frames restantes de modo asustado
+    ghostChain: 0, // fantasmas comidos en la potencia actual (0,1,2,3)
     grid,
     pacman: {
       x: PACMAN_START.x,
@@ -97,11 +105,18 @@ function movePacman( game ) {
       p.dir = p.nextDir;
       p.nextDir = null;
     }
-    // Comer dot.
-    if ( grid[ p.y ][ p.x ] === 2 ) {
+    // Comer dot o power pellet.
+    const tile = grid[ p.y ][ p.x ];
+    if ( tile === 2 ) {
       grid[ p.y ][ p.x ] = 0;
       game.score += 10;
       game.dotsRemaining--;
+    } else if ( tile === 4 ) {
+      grid[ p.y ][ p.x ] = 0;
+      game.score += POWER_PELLET_SCORE;
+      game.dotsRemaining--;
+      game.scared = SCARED_FRAMES;
+      game.ghostChain = 0;
     }
     // Si no puede seguir, se detiene en la celda.
     if ( !canMove( grid, p.x, p.y, p.dir, 'pacman' ) ) return;
@@ -123,6 +138,26 @@ function decideGhost( game, g ) {
   // Sin salida (callejon): permitir el giro de 180.
   const choices = options.length ? options : [ '' + OPPOSITE[ g.dir ] ];
   if ( choices.length === 0 ) return;
+
+  // Modo asustado: huir eligiendo la direccion que mas aleja de Pac-Man.
+  if ( game.scared > 0 && g.exited ) {
+    const px = Math.round( p.x );
+    const py = Math.round( p.y );
+    let best = choices[ 0 ];
+    let bestDist = -Infinity;
+    for ( const dir of choices ) {
+      const d = DIRS[ dir ];
+      const nx = g.x + d.x;
+      const ny = g.y + d.y;
+      const dist = Math.abs( nx - px ) + Math.abs( ny - py );
+      if ( dist > bestDist ) {
+        bestDist = dist;
+        best = dir;
+      }
+    }
+    g.dir = best;
+    return;
+  }
 
   if ( g.kind === 'hunter' ) {
     const px = Math.round( p.x );
@@ -270,6 +305,10 @@ function resetPositions( game ) {
   p.y = PACMAN_START.y;
   p.dir = 'left';
   p.nextDir = null;
+  // Al perder una vida se cancela el modo asustado y su cadena. Los pellets ya
+  // comidos no reaparecen: no se toca el grid.
+  game.scared = 0;
+  game.ghostChain = 0;
   game.ghosts.forEach( ( g, i ) => {
     const start = GHOST_STARTS[ i ] || {};
     g.x = start.x !== undefined ? start.x : g.x;
@@ -284,21 +323,42 @@ function collides( a, b ) {
   return Math.abs( a.x - b.x ) < 0.5 && Math.abs( a.y - b.y ) < 0.5;
 }
 
+// Un fantasma comido vuelve a su celda de inicio en la pen (lookup por kind,
+// nunca por indice) y sale de nuevo por la ruta fija de SPEC 02.
+function sendGhostToPen( g ) {
+  const start = GHOST_STARTS.find( ( s ) => s.kind === g.kind );
+  if ( start ) g.x = start.x;
+  g.y = 14;
+  g.dir = 'up';
+  g.exitDelay = 0;
+  g.exited = false;
+}
+
 function update( game ) {
   movePacman( game );
   game.ghosts.forEach( ( g ) => moveGhost( game, g ) );
 
   for ( const g of game.ghosts ) {
-    if ( collides( game.pacman, g ) ) {
-      game.lives--;
-      if ( game.lives <= 0 ) {
-        game.state = 'lost';
-        return;
-      }
-      resetPositions( game );
-      break;
+    if ( !collides( game.pacman, g ) ) continue;
+    if ( game.scared > 0 ) {
+      // Comido: 200, 400, 800, 1600 segun la cadena de la potencia actual.
+      game.score += GHOST_EAT_BASE * Math.pow( 2, game.ghostChain );
+      game.ghostChain++;
+      sendGhostToPen( g );
+      continue;
     }
+    game.lives--;
+    if ( game.lives <= 0 ) {
+      game.state = 'lost';
+      return;
+    }
+    resetPositions( game );
+    break;
   }
+
+  // El modo asustado vence un frame al final de update, ya resueltas las
+  // colisiones: un choque en el ultimo frame del modo sigue siendo comido.
+  if ( game.scared > 0 ) game.scared--;
 
   if ( game.dotsRemaining <= 0 ) game.state = 'won';
 }
