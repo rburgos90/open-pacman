@@ -315,6 +315,10 @@ function update( game ) {
     }
   }
 
+  // El modo asustado vence un frame al final de update, ya resueltas las
+  // colisiones: un choque en el ultimo frame del modo sigue siendo comido.
+  if ( game.scared > 0 ) game.scared--;
+
   if ( game.dotsRemaining <= 0 ) game.state = 'won';
 }
 
