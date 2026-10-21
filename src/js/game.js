@@ -139,6 +139,26 @@ function decideGhost( game, g ) {
   const choices = options.length ? options : [ '' + OPPOSITE[ g.dir ] ];
   if ( choices.length === 0 ) return;
 
+  // Modo asustado: huir eligiendo la direccion que mas aleja de Pac-Man.
+  if ( game.scared > 0 && g.exited ) {
+    const px = Math.round( p.x );
+    const py = Math.round( p.y );
+    let best = choices[ 0 ];
+    let bestDist = -Infinity;
+    for ( const dir of choices ) {
+      const d = DIRS[ dir ];
+      const nx = g.x + d.x;
+      const ny = g.y + d.y;
+      const dist = Math.abs( nx - px ) + Math.abs( ny - py );
+      if ( dist > bestDist ) {
+        bestDist = dist;
+        best = dir;
+      }
+    }
+    g.dir = best;
+    return;
+  }
+
   if ( g.kind === 'hunter' ) {
     const px = Math.round( p.x );
     const py = Math.round( p.y );
