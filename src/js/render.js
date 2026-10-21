@@ -164,7 +164,16 @@ function draw( ctx, game, frame ) {
   drawDoor( ctx, grid );
   drawDots( ctx, grid, frame );
   drawPacman( ctx, game.pacman, frame );
-  game.ghosts.forEach( ( g, i ) => drawGhost( ctx, g, GHOST_COLORS[ i ] || '#ff0000' ) );
+  // Modo asustado: azul, con flash blanco en los ultimos SCARED_FLASH_FRAMES.
+  const scaredWhite =
+    game.scared > 0 &&
+    game.scared <= SCARED_FLASH_FRAMES &&
+    Math.floor( frame / 15 ) % 2 === 0;
+  const scaredColor = scaredWhite ? '#fff' : '#2121ff';
+  game.ghosts.forEach( ( g, i ) => {
+    const color = game.scared > 0 ? scaredColor : GHOST_COLORS[ i ] || '#ff0000';
+    drawGhost( ctx, g, color );
+  } );
   drawHUD( ctx, game, W );
 }
 
