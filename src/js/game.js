@@ -319,20 +319,37 @@ function collides( a, b ) {
   return Math.abs( a.x - b.x ) < 0.5 && Math.abs( a.y - b.y ) < 0.5;
 }
 
+// Un fantasma comido vuelve a su celda de inicio en la pen (lookup por kind,
+// nunca por indice) y sale de nuevo por la ruta fija de SPEC 02.
+function sendGhostToPen( g ) {
+  const start = GHOST_STARTS.find( ( s ) => s.kind === g.kind );
+  if ( start ) g.x = start.x;
+  g.y = 14;
+  g.dir = 'up';
+  g.exitDelay = 0;
+  g.exited = false;
+}
+
 function update( game ) {
   movePacman( game );
   game.ghosts.forEach( ( g ) => moveGhost( game, g ) );
 
   for ( const g of game.ghosts ) {
-    if ( collides( game.pacman, g ) ) {
-      game.lives--;
-      if ( game.lives <= 0 ) {
-        game.state = 'lost';
-        return;
-      }
-      resetPositions( game );
-      break;
+    if ( !collides( game.pacman, g ) ) continue;
+    if ( game.scared > 0 ) {
+      // Comido: 200, 400, 800, 1600 segun la cadena de la potencia actual.
+      game.score += GHOST_EAT_BASE * Math.pow( 2, game.ghostChain );
+      game.ghostChain++;
+      sendGhostToPen( g );
+      continue;
     }
+    game.lives--;
+    if ( game.lives <= 0 ) {
+      game.state = 'lost';
+      return;
+    }
+    resetPositions( game );
+    break;
   }
 
   // El modo asustado vence un frame al final de update, ya resueltas las
